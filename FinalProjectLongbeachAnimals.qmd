@@ -1,11 +1,87 @@
 ---
-title: "FinalProjectLongbeachAnimals"
+title: "DS 1300 - Final Project"
+author: "Brock Wyma, Conner Woods, Emmanuel Garcia"
+format: 
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: true
+    code-line-numbers: true
+    code-summary: "SHOW ME THE CODE!"
+    code-tools: true
+    theme: yeti
+editor: visual
 ---
 
-## Quarto
+# Questions
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+1) Are there any seasonal patterns related to intake?
+2) What kind of outcomes are most prevalent, and do outcomes vary by species?
+3) How has the number of pet adoptions changed over the years?
+4) Which type of pets are adopted most often?
 
-```{r}
-1 + 1
+# Introduction
+
+The City of Longbeach Animal Care Services rescues and shelters animals in need of assistance. Their operation aims to support the people and animals of their community through outreach, education, guidance, and support services. Several core values guide them through business decisions. These values include compassion for others, passion to achieve their vision, dedication to their craft, and ethical decision making. While these core values create a foundation for Longbeach Animal Care Services, partnerships, animal well-being, and data specifically guide company decisions. Given two data sets from Longbeach Animal Care Services, this report aims to analyse the data and extract readable information for future use.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE} 
+library(tidyverse)
+library(openxlsx)
+
+longbeach <- read.csv("Data/longbeach.csv")
+
+longbeach <- longbeach %>%
+  as_tibble() %>%
+  type_convert()
+
+longbeach_dd <- read.xlsx("Data/longbeach_dd.xlsx", sheet = 1)
+
+summary(longbeach)
+print(longbeach_dd)
 ```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# Providing a summary of the dates
+summary(longbeach$outcome_date)
+summary(longbeach$intake_date)
+
+# Finding the number of unique column values for outcome type
+n_distinct(longbeach$outcome_type)
+unique(longbeach$outcome_type)
+
+# NA counts for each variable
+longbeach_NA_count <- longbeach %>%
+  summarise(across(everything(), ~sum(is.na(.))))
+```
+
+Taking an initial look at the longbeach data, it contains 29,787 entries of 22 variables. The target variable is outcome type with outcome sub-type and outcome date providing additional details of the outcome. With 19 unique cases, outcomes range from the worst being death or euthanasia to the animal being returned to its owner or adopted. Some variables that might be of interest include the animals name and species. Animals with names might be more likely to end up back with their owners, and certain types of animals may be more likely to be adopted. The intake condition, type, and sub-type should also be useful for analyzing how and why animals arrive at the shelter. They also provide several variables describing the location of an animals intake such as crossing, latitude, longitude, and geopoint, allowing us to look into the affect of location on the other variables.
+
+Looking into the values for some of the data, animal name contains 12,161 missing values and secondary color contains 15,604 missing values. This may make it harder to analyze extract useful information from these variables. The same can be said for date of birth and outcome sub-type with ~3,500 missing entries. The reason for intake variable contains 27,784 missing values (~93% of the data) making it almost useless for our analysis. The other variables either contain no missing values or a very small amount of missing data. Analyzing the intake and outcome date variables, the data ranges from January 1, 2017 to December 31, 2024 which is about 8 years of data. This gives a us a very generous range of time which allows us to effectively analyze the data over time.
+
+From this initial inspection of the data being given to us, we raise the following research questions which will be answered later in this report:
+
+1. How does the date of the animals intake relate to the intake condition, type, sub-type, and count?
+
+2. Are there any outcomes that occur more commonly than others and does the animal species affect the outcome?
+
+3. How has the number of pet adoptions changed over time?
+
+4. How does the animal type, name, or color affect the outcome (specifically adoption)?
+
+5. Are there locations of greater intake? If so, is it due to the animals species?
+
+# Methods
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+longbeach <- longbeach %>%
+  select(-reason_for_intake, -jurisdiction, -sex, -dob, -geopoint)
+```
+
+To start cleaning the data, we will remove unnecessary rows or columns. Since the reason for intake contains too much missing data and doesn't help answer our questions, the column will be removed. Similarly, the jurisdiction, sex, and date of birth variables don't help answer our questions, so they will be removed. The geopoint column simply combines the latitude and longitude columns into one value. To remove redundant data, we will keep the more informative columns (latitude, longitude) and remove geopoint. 
+
+
+
+
+
+
+
