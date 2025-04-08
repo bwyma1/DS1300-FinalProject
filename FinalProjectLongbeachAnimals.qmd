@@ -13,20 +13,15 @@ format:
 editor: visual
 ---
 
-# Questions
-
-1) Are there any seasonal patterns related to intake?
-2) What kind of outcomes are most prevalent, and do outcomes vary by species?
-3) How has the number of pet adoptions changed over the years?
-4) Which type of pets are adopted most often?
-
 # Introduction
 
-The City of Longbeach Animal Care Services rescues and shelters animals in need of assistance. Their operation aims to support the people and animals of their community through outreach, education, guidance, and support services. Several core values guide them through business decisions. These values include compassion for others, passion to achieve their vision, dedication to their craft, and ethical decision making. While these core values create a foundation for Longbeach Animal Care Services, partnerships, animal well-being, and data specifically guide company decisions. Given two data sets from Longbeach Animal Care Services, this report aims to analyse the data and extract readable information for future use.
+The City of Longbeach Animal Care Services rescues and shelters animals in need of assistance. Their operation aims to support the people and animals of their community through outreach, education, guidance, and support services. Several core values guide them through business decisions. These values include compassion for others, passion to achieve their vision, dedication to their craft, and ethical decision making. While these core values create a foundation for Longbeach Animal Care Services, partnerships, animal well-being, and data specifically guide company decisions. Given two data sets from Longbeach Animal Care Services, this report aims to analyse the data and extract readable information to help the Longbeach Animal Services achieve their goals.
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE} 
 library(tidyverse)
 library(openxlsx)
+library(DT)
+library(gt)
 
 longbeach <- read.csv("Data/longbeach.csv")
 
@@ -70,18 +65,62 @@ From this initial inspection of the data being given to us, we raise the followi
 
 5. Are there locations of greater intake? If so, is it due to the animals species?
 
-# Methods
+# Methods (Passive voice)
+
+## Classifying Data Types
+
+Here, we classified the variables of our data into their respective types:
+
+**Categorical Nominal:** animal_id, animal_name, animal_type, primary_color, secondary_color, sex, intake_type, intake_subtype, reason_for_intake, crossing, jurisdiction, outcome_is_dead, was_outcome_alive
+
+**Categorical Ordinal:** dob, intake_date, intake_condition, outcome_date, outcome_type, outcome_subtype
+
+**Nominal Continuous:** latitude, longitude
+
+This tells us what kind of visual and numeric summaries can be used on the data. Since we mostly have categorical variables, we shifted most of our analysis to various categorical summaries on one or more variables. These include numeric summaries such as frequency tables and contingency tables as well as visual summaries such as bar plots. We also have access to visual summaries such as maps from the latitude/longitude variables and time series plots from the various date variables.
+
+## Cleaning the Data (Fixing Missing Data and Extreme Values)
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# Removing variables with lots of missing dtaa
 longbeach <- longbeach %>%
   select(-reason_for_intake, -jurisdiction, -sex, -dob, -geopoint)
 ```
 
 To start cleaning the data, we will remove unnecessary rows or columns. Since the reason for intake contains too much missing data and doesn't help answer our questions, the column will be removed. Similarly, the jurisdiction, sex, and date of birth variables don't help answer our questions, so they will be removed. The geopoint column simply combines the latitude and longitude columns into one value. To remove redundant data, we will keep the more informative columns (latitude, longitude) and remove geopoint. 
 
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
+# Boxplots to look for outliers in the intake/outcome dates
+ggplot(longbeach) +
+  geom_boxplot(aes(x = "Intake Date", y = intake_date), fill = "skyblue") +
+  geom_boxplot(aes(x = "Outcome Date", y = outcome_date), fill = "lightgreen") +
+  theme_minimal() +
+  labs(title = "Boxplots for Intake/Outcome Dates", x = "Variable", y = "Date")
+
+# 5 Number Summaries for latitude and longitude
+summary(longbeach$latitude)
+summary(longbeach$longitude)
+
+# Removing the outliers using the 1.5*IQR Rule
+longbeach <- longbeach %>%
+  filter(
+    between(latitude, quantile(latitude, 0.25) - 1.5 * IQR(latitude), quantile(latitude, 0.75) + 1.5 * IQR(latitude)),
+    between(longitude, quantile(longitude, 0.25) - 1.5 * IQR(longitude), quantile(longitude, 0.75) + 1.5 * IQR(longitude))
+  )
+```
 
 
+Since most of the data is categorical, there are only a few places that extreme values could exist. Outliers could appear in the date variables or the latitude/longitude variables. For the intake and outcome dates, a boxplot shows no outliers. For the latitude and longitude variables, looking at the 5-number summary, there appears to be outliers due to the massive gape between the min/max and the quartiles. Using the 1.5*IQR Rule, we removed these outliers. This removed 214 rows of data or 0.72% of the data, taking our total entries down to 29,573.
 
+## Maybe Combine Variables?
 
+## 
 
+# Results
+
+Very objective, just present the plots/results and make any OBJECTIVE notes on the figures
+
+# Discussion
+
+Summarize main findings and comment on the findings. Discuss limitations (i.e. dropping x data could have lost us x factors which may effect the results)
 
