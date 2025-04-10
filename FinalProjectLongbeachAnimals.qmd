@@ -22,6 +22,7 @@ library(tidyverse)
 library(openxlsx)
 library(DT)
 library(gt)
+library(lubridate)
 
 longbeach <- read.csv("Data/longbeach.csv")
 
@@ -55,7 +56,7 @@ Looking into the values for some of the data, animal name contains 12,161 missin
 
 From this initial inspection of the data being given to us, we raise the following research questions which will be answered later in this report:
 
-1. How does the date of the animals intake relate to the intake condition, type, sub-type, and count?
+1. Are there any seasonal patterns related to intake condition, type, and count? 
 
 2. Are there any outcomes that occur more commonly than others and does the animal species affect the outcome?
 
@@ -65,7 +66,7 @@ From this initial inspection of the data being given to us, we raise the followi
 
 5. Are there locations of greater intake? If so, is it due to the animals species?
 
-# Methods (Passive voice)
+# Methods 
 
 ## Classifying Data Types
 
@@ -77,7 +78,7 @@ Here, we classified the variables of our data into their respective types:
 
 **Nominal Continuous:** latitude, longitude
 
-This tells us what kind of visual and numeric summaries can be used on the data. Since we mostly have categorical variables, we shifted most of our analysis to various categorical summaries on one or more variables. These include numeric summaries such as frequency tables and contingency tables as well as visual summaries such as bar plots. We also have access to visual summaries such as maps from the latitude/longitude variables and time series plots from the various date variables.
+This showed what kind of visual and numeric summaries can be used on the data. Since we mostly have categorical variables, we shifted most of our analysis to various categorical summaries on one or more variables. These include numeric summaries such as frequency tables and contingency tables as well as visual summaries such as bar plots. There was also access to visual summaries such as maps from the latitude/longitude variables and time series plots from the various date variables.
 
 ## Cleaning the Data (Fixing Missing Data and Extreme Values)
 
@@ -87,7 +88,7 @@ longbeach <- longbeach %>%
   select(-reason_for_intake, -jurisdiction, -sex, -dob, -geopoint)
 ```
 
-To start cleaning the data, we will remove unnecessary rows or columns. Since the reason for intake contains too much missing data and doesn't help answer our questions, the column will be removed. Similarly, the jurisdiction, sex, and date of birth variables don't help answer our questions, so they will be removed. The geopoint column simply combines the latitude and longitude columns into one value. To remove redundant data, we will keep the more informative columns (latitude, longitude) and remove geopoint. 
+To start cleaning the data, we removed unnecessary rows or columns. Since the reason for intake contains too much missing data and doesn't help answer our questions, the column was removed. Similarly, the jurisdiction, sex, and date of birth variables don't help answer our questions, so they were removed. The geopoint column simply combines the latitude and longitude columns into one value. In order to remove redundant data, we kept the more informative columns (latitude, longitude) and remove geopoint.
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE, include=FALSE}
 # Boxplots to look for outliers in the intake/outcome dates
@@ -110,15 +111,139 @@ longbeach <- longbeach %>%
 ```
 
 
-Since most of the data is categorical, there are only a few places that extreme values could exist. Outliers could appear in the date variables or the latitude/longitude variables. For the intake and outcome dates, a boxplot shows no outliers. For the latitude and longitude variables, looking at the 5-number summary, there appears to be outliers due to the massive gape between the min/max and the quartiles. Using the 1.5*IQR Rule, we removed these outliers. This removed 214 rows of data or 0.72% of the data, taking our total entries down to 29,573.
+Since most of the data is categorical, there are only a few places that extreme values could exist. Outliers could appear in the date variables or the latitude/longitude variables. For the intake and outcome dates, a boxplot shows no outliers. For the latitude and longitude variables, looking at the 5-number summary, there appeared to be outliers due to the massive gape between the min/max and the quartiles. Using the 1.5*IQR Rule, we removed these outliers. This removed 214 rows of data or 0.72% of the data, taking our total entries down to 29,573.
 
-## Maybe Combine Variables?
+## Tablular Summaries
 
-## 
+For summarizing the seasonal changes for animal intake, we grouped the data by months and sorted out the most common intake condition and intake type. The total intake count was also calculated for each month. ...
+
+## Visual Summaries
+
+...
 
 # Results
 
-Very objective, just present the plots/results and make any OBJECTIVE notes on the figures
+## Seasonal Patters in Relation to Animal Intake
+
+```{r}
+# Making a seasonal summary (summary per month) for intake variables
+seasonal_summary <- longbeach %>%
+  mutate(month = as.Date(paste0(format(intake_date, "%Y-%m"), "-01"))) %>%
+  group_by(month) %>%
+  summarise(
+    most_intake_condition = names(which.max(table(intake_condition))),
+    most_intake_type = names(which.max(table(intake_type))),
+    intake_count = n(),
+    .groups = "drop"
+  )
+
+seasonal_summary %>% 
+  mutate(month = format(ymd(month), "%B %Y")) %>%
+  datatable( 
+          caption = "Table 1: Monthly Summary for Intake Data",
+          colnames = c("Month", "Common Intake Conditio", "Common Intake Type", "Total Intakes"),
+          options = list(
+            pageLength = 12,
+             dom = 'tp'
+          )
+)
+```
+
+The results from Table 1 showed that the most common intake type of animals for every month of every year was strays. The table also shows that while animals commonly come in with a normal condition, during some months, they come in under age/weight. Animals only came in under age/weight more commonly during the months of April, July, and May.
+
+```{r}
+# A time series plot to visualize the intake number per month better.
+plot_data <- seasonal_summary %>%
+  mutate(
+    year = as.integer(format(month, "%Y")),
+    month_num = as.integer(format(month, "%m")),
+    period = case_when(
+      year %in% 2017:2018 ~ "2017–2018",
+      year %in% 2019:2020 ~ "2019-2020",
+      year %in% 2021:2022 ~ "2021-2022",
+      year %in% 2023:2024 ~ "2023–2024",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(period)) %>%
+  group_by(period, month_num) %>%
+  summarise(
+    avg_total = mean(intake_count),
+    .groups = "drop"
+  )
+
+ggplot(plot_data, aes(x = month_num, y = avg_total, color = period, group = period)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:12, labels = month.abb) +
+  labs(
+    title = "Figure 1: Average Monthly Intakes",
+    x = "Month",
+    y = "Average Intake Count",
+    color = "Period of Time"
+  ) +
+  theme_bw()
+```
+
+Intake counts were higher during the months of April to October in Figure 1. The peak intake counts for 2017-2018, 2019-2020, 2021-2022, and 2023-2024 respectively were May/August with 491.5, June with 464, September with 339, and May with 524.
+
+## Animal Outcomes
+
+```{r}
+# Plotting the bar chart for outcome types
+longbeach %>%
+  filter(!is.na(outcome_type)) %>%
+  ggplot(aes(y = fct_rev(fct_infreq(outcome_type)))) +
+  geom_bar(fill = "steelblue") +
+  labs(y = "Outcome Type",
+       x = "Count",
+       title = "Figure 2: Number of Occurences for the Different Outcomes") +
+  theme_bw()
+```
+
+From Figure 2, Rescue, adoption, euthanasia, transfer, and returned to owner had a much higher count than all of the other outcomes with rescue being the highest. 
+
+```{r}
+# Grabbing the top 3 groupings per animal type for outcome types
+varyBySpecies <- longbeach |>
+  group_by(animal_type, outcome_type) |>
+  summarize(count = n(), .groups = "drop") |>
+  group_by(animal_type) |>
+  slice_max(order_by = count, n = 3)
+
+# Displaying the information as a table
+datatable(varyBySpecies, 
+          caption = "Table 2: Count of Outcomes per Species",
+          colnames = c("Species", "Outcome Type", "Count"),
+          filter = "top")
+```
+
+Using Table2, Cats had the highest rescue rate, and dogs had the highest rate of being returned to their owner. A large number of cats and dogs get adopted with it being the second highest outcome for each animal. Wild animals had a very high euthanasia rate compared to its other outcomes. 
+
+## Pet Adoption Rates
+
+```{r}
+#subset of the data that only includes adoptions
+adopted <- longbeach |>
+  filter(outcome_type == "adoption" | outcome_type == "foster to adopt") |>
+  mutate(year = format(outcome_date, "%Y")) |>
+  group_by(year) |>
+  summarize(count = n()) 
+  
+ggplot(adopted, aes(x = year, y = count, group = 1)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Intake Date",
+       y = "Number of Adoptions",
+       title = "Figure 3: Number of Adoptions Over Time Based on Intake Date") +
+  theme_bw()
+```
+
+From figure 3, there was a local spike in adoptions during 2019. Ever since 2021, adoptions increased over the years with 1463 adoptions during 2024. The biggest increase was from 2021 to 2022 with an increase of 723 adoptions.
+
+## Types of Pets Adopted
+
+
 
 # Discussion
 
