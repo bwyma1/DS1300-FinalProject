@@ -18,6 +18,7 @@ editor: visual
 The City of Longbeach Animal Care Services rescues and shelters animals in need of assistance. Their operation aims to support the people and animals of their community through outreach, education, guidance, and support services. Several core values guide them through business decisions. These values include compassion for others, passion to achieve their vision, dedication to their craft, and ethical decision making. While these core values create a foundation for Longbeach Animal Care Services, partnerships, animal well-being, and data specifically guide company decisions. Given two data sets from Longbeach Animal Care Services, this report aims to analyse the data and extract readable information to help the Longbeach Animal Services achieve their goals.
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
+# Load Libraries
 library(tidyverse)
 library(openxlsx)
 library(DT)
@@ -25,17 +26,39 @@ library(gt)
 library(lubridate)
 library(leaflet)
 
+# Read in the data set
 longbeach <- read.csv("Data/longbeach.csv")
 
+# Type convert works well on this data set
 longbeach <- longbeach %>%
   as_tibble() %>%
   type_convert()
 
+# Read in data set descriptions
 longbeach_dd <- read.xlsx("Data/longbeach_dd.xlsx", sheet = 1)
 
+# Showing the data for short introduction to the data set
 summary(longbeach)
 print(longbeach_dd)
 ```
+
+The data contains 29,787 entries/rows of 22 variables/columns. Each row contains one case on an animal which was involved with the shelter at some point in time. The columns describe components of the case such as the animals species, the way it came into the shelter, the way it left the shelter, and many more descriptions.
+
+From this initial inspection of the data being given to us, we raise the following research questions which will be answered later in this report:
+
+1.  Are there any seasonal patterns related to intake type and count?
+
+2.  Are there any outcomes that occur more commonly than others and does the animal species affect the outcome?
+
+3.  How has the number of pet adoptions changed over time?
+
+4.  What types of animals are adopted? Do certain animal characteristics influence the chances of adoption for an animal?
+
+5.  Are there locations of greater intake? If so, is it due to the animals species?
+
+# Methods
+
+## A Quick Deep Dive
 
 ```{r, message=FALSE, warning=FALSE, results='hide'}
 # Providing a summary of the dates
@@ -51,35 +74,9 @@ longbeach_NA_count <- longbeach %>%
   summarise(across(everything(), ~sum(is.na(.))))
 ```
 
-Taking an initial look at the longbeach data, it contains 29,787 entries of 22 variables. The target variable is outcome type with outcome sub-type and outcome date providing additional details of the outcome. With 19 unique cases, outcomes range from the worst being death or euthanasia to the animal being returned to its owner or adopted. Some variables that might be of interest include the animals name and species. Animals with names might be more likely to end up back with their owners, and certain types of animals may be more likely to be adopted. The intake condition, type, and sub-type should also be useful for analyzing how and why animals arrive at the shelter. They also provide several variables describing the location of an animals intake such as crossing, latitude, longitude, and geopoint, allowing us to look into the affect of location on the other variables.
+The target variable is outcome type with outcome sub-type and outcome date providing additional details of the outcome. With 19 unique cases, outcomes range from the worst being death or euthanasia to the animal being returned to its owner or adopted. Some variables that might be of interest include the animals name and species. Animals with names might be more likely to end up back with their owners, and certain types of animals may be more likely to be adopted. The intake condition, type, and sub-type should also be useful for analyzing how and why animals arrive at the shelter. They also provide several variables describing the location of an animals intake such as crossing, latitude, longitude, and geopoint, allowing us to look into the affect of location on the other variables.
 
 Looking into the values for some of the data, animal name contains 12,161 missing values and secondary color contains 15,604 missing values. This may make it harder to analyze extract useful information from these variables. The same can be said for date of birth and outcome sub-type with \~3,500 missing entries. The reason for intake variable contains 27,784 missing values (\~93% of the data) making it almost useless for our analysis. The other variables either contain no missing values or a very small amount of missing data. Analyzing the intake and outcome date variables, the data ranges from January 1, 2017 to December 31, 2024 which is about 8 years of data. This gives a us a very generous range of time which allows us to effectively analyze the data over time.
-
-From this initial inspection of the data being given to us, we raise the following research questions which will be answered later in this report:
-
-1.  Are there any seasonal patterns related to intake condition, type, and count?
-
-2.  Are there any outcomes that occur more commonly than others and does the animal species affect the outcome?
-
-3.  How has the number of pet adoptions changed over time?
-
-4.  What types of animals are adopted? Do certain animal characteristics influence the chances of adoption for an animal?
-
-5.  Are there locations of greater intake? If so, is it due to the animals species?
-
-# Methods
-
-## Classifying Data Types
-
-Here, we classified the variables of our data into their respective types:
-
-**Categorical Nominal:** animal_id, animal_name, animal_type, primary_color, secondary_color, sex, intake_type, intake_subtype, reason_for_intake, crossing, jurisdiction, outcome_is_dead, was_outcome_alive
-
-**Categorical Ordinal:** dob, intake_date, intake_condition, outcome_date, outcome_type, outcome_subtype
-
-**Nominal Continuous:** latitude, longitude
-
-This showed what kind of visual and numeric summaries can be used on the data. Since we mostly have categorical variables, we shifted most of our analysis to various categorical summaries on one or more variables. These include numeric summaries such as frequency tables and contingency tables as well as visual summaries such as bar plots. There was also access to visual summaries such as maps from the latitude/longitude variables and time series plots from the various date variables.
 
 ## Cleaning the Data (Fixing Missing Data and Extreme Values)
 
@@ -113,15 +110,31 @@ longbeach <- longbeach %>%
 
 Since most of the data is categorical, there are only a few places that extreme values could exist. Outliers could appear in the date variables or the latitude/longitude variables. For the intake and outcome dates, a boxplot shows no outliers. For the latitude and longitude variables, looking at the 5-number summary, there appeared to be outliers due to the massive gape between the min/max and the quartiles. Using the 1.5\*IQR Rule, we removed these outliers. This removed 214 rows of data or 0.72% of the data, taking our total entries down to 29,573.
 
+## Classifying Data Types
+
+Here, we classified the variables of interest in the data into their respective types:
+
+| Variable             | Type                    |
+|----------------------|-------------------------|
+| Intake Date          | Categorical Ordinal     |
+| Type of Intake       | Categorical Nominal     |
+| Type of Outcome      | Categorical Nominal     |
+| Animal Species       | Categorical Nominal     |
+| Animal Name          | Categorical Nominal     |
+| Latitude of Intake   | Nominal Continuous      |
+| Longitude of Intake  | Nominal Continuous      |
+
+This showed what kind of visual and numeric summaries can be used on the data. Since we mostly have categorical variables, we shifted most of our analysis to various categorical summaries on one or more variables. These include numeric summaries such as frequency tables and contingency tables as well as visual summaries such as bar plots. There was also access to visual summaries such as maps from the latitude/longitude variables and time series plots from the date variable.
+
 ## Summarizing the Data
 
-For summarizing the seasonal changes for animal intake, we grouped the data by months and sorted out the most common intake condition and intake type. The total intake count was also calculated for each month. We formatted all of this information into a datatable covering the entirety of all 8 years of data. In order to provide a visual for the trend of intake counts over time, we created a time series plot of the intake. For this plot, we split the data into two year chunks and averaged the total intakes per month, plotting each chunk as a seperate line.
+For summarizing the seasonal changes for animal intake, we grouped the data by months. For the first visual summary, we grouped the data by intake type and counted the average intake over the 8 years for each month. We took the top three most common intake types and plotted those on a time series plot. For the second visual summary, we also made a time series plot, however, we disregard the intake type in an attempt to get a better visualization of the effect of time on intake. We split the data into two year chunks and averaged the total intakes per month, plotting each chunk as a separate line. 
 
 Taking the outcome types, we created a bar chart for this categorical variable. We sorted the bar chart in ascending order. We then created a table containing the top three outcomes for each animal type. 
 
 For adoption rates, we added up all of the adoption related outcomes for each year of data. We plotted these outcomes on a yearly time series plot for all eight years of data.
 
-Taking a deeper look into adoptions, we created a contingency table of animals with a name/without a name and adopted/not adopted animals in order to analyze any effect of animal names on adoptions. We then created a bar chart showing the percentage of adoptions for each animal type. Since this chart only paints a part of the story, we created a pie chart along side it. The pie chart contains the percentages that each animal type represents among only adopted animals. A pie chart fits the data better than a bar chart since there are a few majority classes which we wanted to show.
+Taking a deeper look into adoptions, we created a contingency table of animals with a name/without a name and adopted/not adopted animals in order to analyze any effect of animal names on adoptions. We then created a bar chart showing the percentage of adoptions for each animal type. Since this chart only paints a part of the story, we created a second bar chart along side it. This bar chart contains the percentages that each animal type represents among only adopted animals. 
 
 We created a leaflet map to visualize the intake counts relative to location. The map was marked with clusters to signify areas with intake where larger clusters indicate more animal intake. It also contained an interactive filter on animal type to show or hide specific animal types.
 
@@ -130,32 +143,47 @@ We created a leaflet map to visualize the intake counts relative to location. Th
 ## Seasonal Patters in Relation to Animal Intake
 
 ```{r}
-# Making a seasonal summary (summary per month) for intake variables
+# Find the top three most common intake types
+top_types <- longbeach %>%
+  count(intake_type, sort = TRUE) %>%
+  slice_head(n = 3) %>%
+  pull(intake_type)
+
+# Prepare the data for plotting...
+plot_data <- longbeach %>%
+  filter(intake_type %in% top_types, !is.na(intake_date)) %>%
+  mutate(month_num = as.integer(format(intake_date, "%m"))) %>%
+  group_by(intake_type, year = format(intake_date, "%Y"), month_num) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(intake_type, month_num) %>%
+  summarise(avg_total = mean(count), .groups = "drop")
+
+# Plot the time series plot
+ggplot(plot_data, aes(x = month_num, y = avg_total, color = intake_type)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = 1:12, labels = month.abb) +
+  labs(
+    title = "Figure 1: Average Monthly Intakes for Top 3 Intake Types",
+    x = "Month",
+    y = "Average Intake Count",
+    color = "Intake Type"
+  ) +
+  theme_bw()
+```
+
+The results of Figure 1 showed that the most common intake type over the entire year on average was stray animals. Stray animals peaked at June with an average count of 300. Stray animals counts also fell to low counts around November to March. Wildlife, the second most common intake type, shows a similar trend to the stray counts with a lower numbers during November to February. Owners surrendering their animal had the lowest of the top three intake types with relatively even counts during the year.
+
+```{r}
+# Create a summary subset of the data
 seasonal_summary <- longbeach %>%
   mutate(month = as.Date(paste0(format(intake_date, "%Y-%m"), "-01"))) %>%
   group_by(month) %>%
   summarise(
-    most_intake_condition = names(which.max(table(intake_condition))),
-    most_intake_type = names(which.max(table(intake_type))),
     intake_count = n(),
     .groups = "drop"
   )
 
-seasonal_summary %>% 
-  mutate(month = format(ymd(month), "%B %Y")) %>%
-  datatable( 
-          caption = "Table 1: Monthly Summary for Intake Data",
-          colnames = c("Month", "Common Intake Conditio", "Common Intake Type", "Total Intakes"),
-          options = list(
-            pageLength = 12,
-             dom = 'tp'
-          )
-)
-```
-
-The results from Table 1 showed that the most common intake type of animals for every month of every year was strays. The table also shows that while animals commonly come in with a normal condition, during some months, they come in under age/weight. Animals only came in under age/weight more commonly during the months of April, July, and May.
-
-```{r}
 # A time series plot to visualize the intake number per month better.
 plot_data <- seasonal_summary %>%
   mutate(
@@ -181,7 +209,7 @@ ggplot(plot_data, aes(x = month_num, y = avg_total, color = period, group = peri
   geom_point() +
   scale_x_continuous(breaks = 1:12, labels = month.abb) +
   labs(
-    title = "Figure 1: Average Monthly Intakes",
+    title = "Figure 2: Average Monthly Intakes (2 Year Intervals)",
     x = "Month",
     y = "Average Intake Count",
     color = "Period of Time"
@@ -189,7 +217,7 @@ ggplot(plot_data, aes(x = month_num, y = avg_total, color = period, group = peri
   theme_bw()
 ```
 
-Intake counts were higher during the months of April to October in Figure 1. The peak intake counts for 2017-2018, 2019-2020, 2021-2022, and 2023-2024 respectively were May/August with 491.5, June with 464, September with 339, and May with 524.
+Intake counts were higher during the months of April to October in Figure 2. The peak intake counts for 2017-2018, 2019-2020, 2021-2022, and 2023-2024 respectively were May/August with 491.5, June with 464, September with 339, and May with 524.
 
 ## Animal Outcomes
 
@@ -201,11 +229,11 @@ longbeach %>%
   geom_bar(fill = "steelblue") +
   labs(y = "Outcome Type",
        x = "Count",
-       title = "Figure 2: Number of Occurences for the Different Outcomes") +
+       title = "Figure 3: Number of Occurences for the Different Outcomes") +
   theme_bw()
 ```
 
-From Figure 2, Rescue, adoption, euthanasia, transfer, and returned to owner had a much higher count than all of the other outcomes with rescue being the highest.
+From Figure 3, Rescue, adoption, euthanasia, transfer, and returned to owner had a much higher count than all of the other outcomes with rescue being the highest.
 
 ```{r}
 # Grabbing the top 3 groupings per animal type for outcome types
@@ -217,12 +245,12 @@ varyBySpecies <- longbeach |>
 
 # Displaying the information as a table
 datatable(varyBySpecies, 
-          caption = "Table 2: Count of Outcomes per Species",
+          caption = "Table 1: Count of Outcomes per Species",
           colnames = c("Species", "Outcome Type", "Count"),
           filter = "top")
 ```
 
-Using Table2, Cats had the highest rescue rate, and dogs had the highest rate of being returned to their owner. A large number of cats and dogs get adopted with it being the second highest outcome for each animal. Wild animals had a very high euthanasia rate compared to its other outcomes.
+Table 2 shows a subset of the top three outcome types per animal species. For animals with less than three outcome types, all of their outcome types are shown in the table. Using Table2, Cats had the highest rescue rate, and dogs had the highest rate of being returned to their owner. A large number of cats and dogs get adopted with it being the second highest outcome for each animal. Wild animals had a very high euthanasia rate compared to its other outcomes.
 
 ## Pet Adoption Rates
 
@@ -240,20 +268,39 @@ ggplot(adopted, aes(x = year, y = count, group = 1)) +
   geom_point() +
   labs(x = "Intake Date",
        y = "Number of Adoptions",
-       title = "Figure 3: Number of Adoptions Over Time Based on Intake Date") +
+       title = "Figure 4: Number of Adoptions Over Time Based on Intake Date") +
   theme_bw()
 ```
 
-From figure 3, there was a local spike in adoptions during 2019. Ever since 2021, adoptions increased over the years with 1463 adoptions during 2024. The biggest increase was from 2021 to 2022 with an increase of 723 adoptions.
+From Figure 4, there was a local spike in adoptions during 2019. Ever since 2021, adoptions increased over the years with 1463 adoptions during 2024. The biggest increase was from 2021 to 2022 with an increase of 723 adoptions.
 
 ## Types of Pets Adopted
 
 ```{r}
-# Contingency Table for Animal Name vs Adoption
-table(
-  Name = ifelse(is.na(longbeach$animal_name), "Doesn't Have a Name", "Has a Name"),
-  Adopted = ifelse(longbeach$outcome_type == "adoption" | longbeach$outcome_type == "foster to adopt", "Adopted", "Not Adopted")
-)
+adoption_table <- longbeach %>%
+  mutate(
+    Name = ifelse(is.na(animal_name), "Doesn't Have a Name", "Has a Name"),
+    Adopted = ifelse(outcome_type %in% c("adoption", "foster to adopt"), "Adopted", "Not Adopted")
+  ) %>%
+  count(Name, Adopted) %>%
+  tidyr::pivot_wider(names_from = Adopted, values_from = n, values_fill = 0)
+
+# Display as a styled table
+gt(adoption_table) %>%
+  tab_header(
+    title = "Table 2: Adoption Outcome by Animal Names",
+    subtitle = "Comparing adoption rates between animals with and without names"
+  ) %>%
+  cols_label(
+    Name = "Animal Name Status",
+    Adopted = "Adopted",
+    `Not Adopted` = "Not Adopted"
+  ) %>%
+  fmt_number(columns = 2:3, decimals = 0, sep_mark = ",") %>%
+  tab_options(
+    table.border.top.color = "gray",
+    table.border.bottom.color = "gray"
+  )
 ```
 Out of animals which were adopted, 97% of them had names. On the other hand, 43.4% of the animals which were not adopted had names.
 
@@ -274,13 +321,13 @@ ggplot(adoption_rates, aes(x = adoption_rate, y = reorder(animal_type, adoption_
                      breaks = seq(0, 100, by = 10),
                      labels = function(x) paste0(x, "%")) +
   labs(
-    title = "Figure 4: Adoption Rate by Animal Type",
+    title = "Figure 5: Adoption Rate by Animal Type",
     x = "Adoption Rate (%)",
     y = "Animal Type"
   ) +
   theme_bw()
 ```
-Figure 4 shows that livestock had the highest adoption rate at 60%. The next highest rate were guinea pigs with a 33.72% adoption rate. Rabbits, dogs, and cats were all adopted at similar rates around ~27% of the time. Wild animals, with a total of 1412 entries, were never adopted. Amphibians, with a total of 3 entreis, were never adopted.
+Figure 5 shows that livestock had the highest adoption rate at 60%. The next highest rate were guinea pigs with a 33.72% adoption rate. Rabbits, dogs, and cats were all adopted at similar rates around ~27% of the time. Wild animals, with a total of 1412 entries, were never adopted. Amphibians, with a total of 3 entreis, were never adopted.
 
 ```{r}
 # Filter to adopted animals and calculate % by animal type
@@ -292,22 +339,18 @@ adoption_distribution <- longbeach %>%
     percent = n / sum(n) * 100
   )
 
-# Plot
-ggplot(adoption_distribution, aes(x = "", y = percent, fill = animal_type)) +
-  geom_col(width = 1, color = "white") +
-  coord_polar("y") +
+# Plot as a horizontal bar chart
+ggplot(adoption_distribution, aes(x = percent, y = reorder(animal_type, percent))) +
+  geom_col(fill = "#69b3a2") +
   labs(
-    title = "Figure 5: Adoption Distribution by Animal Type",
-    x = NULL,
-    y = NULL,
-    fill = "Animal Type"
+    title = "Figure 6: Adoption Distribution by Animal Type",
+    x = "Percentage of Adoptions",
+    y = "Animal Type"
   ) +
-  theme_void() +
-  theme(
-    plot.title = element_text(hjust = 0.5)
-  )
+  scale_x_continuous(labels = scales::percent_format(scale = 1)) +
+  theme_bw()
 ```
-From Figure 5, cats and dogs had the highest amount of adoptions compared to all adoptions from all animals. Cats and dogs combined also account for almost all adoptions at the Longbeach Animal Care Services.
+From Figure 6, cats and dogs had the highest amount of adoptions compared to all adoptions from all animals. Cats and dogs combined also account for almost all adoptions at the Longbeach Animal Care Services.
 
 ## Animal Intake According to Location
 
