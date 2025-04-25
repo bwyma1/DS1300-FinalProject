@@ -25,6 +25,8 @@ library(DT)
 library(gt)
 library(lubridate)
 library(leaflet)
+library(sf)
+library(viridis)
 
 # Read in the data set
 longbeach <- read.csv("Data/longbeach.csv")
@@ -136,7 +138,7 @@ For adoption rates, we added up all of the adoption related outcomes for each ye
 
 Taking a deeper look into adoptions, we created a contingency table of animals with a name/without a name and adopted/not adopted animals in order to analyze any effect of animal names on adoptions. We then created a bar chart showing the percentage of adoptions for each animal type. Since this chart only paints a part of the story, we created a second bar chart along side it. This bar chart contains the percentages that each animal type represents among only adopted animals. 
 
-We created a leaflet map to visualize the intake counts relative to location. The map was marked with clusters to signify areas with intake where larger clusters indicate more animal intake. It also contained an interactive filter on animal type to show or hide specific animal types.
+We created a leaflet map to visualize the intake counts relative to location. The map was marked with gridlike clusters of varying color to signify areas of higher or lower intake. It contained an interactive filter on animal type to allow the user to pick which animal species to show on the map. 
 
 # Results
 
@@ -250,7 +252,7 @@ datatable(varyBySpecies,
           filter = "top")
 ```
 
-Table 2 shows a subset of the top three outcome types per animal species. For animals with less than three outcome types, all of their outcome types are shown in the table. Using Table2, Cats had the highest rescue rate, and dogs had the highest rate of being returned to their owner. A large number of cats and dogs get adopted with it being the second highest outcome for each animal. Wild animals had a very high euthanasia rate compared to its other outcomes.
+Table 1 shows a subset of the top three outcome types per animal species. For animals with less than three outcome types, all of their outcome types are shown in the table. Using Table2, Cats had the highest rescue rate, and dogs had the highest rate of being returned to their owner. A large number of cats and dogs get adopted with it being the second highest outcome for each animal. Wild animals had a very high euthanasia rate compared to its other outcomes.
 
 ## Pet Adoption Rates
 
@@ -302,7 +304,7 @@ gt(adoption_table) %>%
     table.border.bottom.color = "gray"
   )
 ```
-Out of animals which were adopted, 97% of them had names. On the other hand, 43.4% of the animals which were not adopted had names.
+Using Table 2, out of animals which were adopted, 97% of them had names. On the other hand, 43.4% of the animals which were not adopted had names.
 
 ```{r}
 # Calculate the adoption rates per animal type
@@ -355,31 +357,57 @@ From Figure 6, cats and dogs had the highest amount of adoptions compared to all
 ## Animal Intake According to Location
 
 ```{r}
-# Count by location and animal_type
-location_counts <- longbeach %>%
-  count(animal_type, longitude, latitude, name = "count") %>%
-  mutate(animal_type = stringr::str_to_title(animal_type))
+# Convert to sf and filter valid coordinates
+df_sf <- longbeach %>%
+  filter(!is.na(longitude), !is.na(latitude)) %>%
+  mutate(animal_type = tools::toTitleCase(animal_type)) %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
 
-# Create color palette
-pal <- colorNumeric("viridis", domain = location_counts$count)
+# Transform to meters for square grid
+df_sf_m <- st_transform(df_sf, crs = 3857)
 
-# Unique animal types
-animal_types <- unique(location_counts$animal_type)
+# Create square grid (1000m x 1000m)
+cell_size <- 1000
+grid <- st_make_grid(df_sf_m, cellsize = cell_size, square = TRUE)
 
-# Create Leaflet Map
+# Convert grid to sf and join with points
+grid_sf <- st_sf(grid_id = 1:length(grid), geometry = grid)
+joined <- st_join(df_sf_m, grid_sf)
+
+# Count animals by grid and type
+grid_counts <- joined %>%
+  st_drop_geometry() %>%
+  count(grid_id, animal_type, name = "count") %>%
+  left_join(grid_sf, by = "grid_id") %>%
+  st_as_sf()
+
+# Count all animals regardless of type
+grid_total <- joined %>%
+  st_drop_geometry() %>%
+  count(grid_id, name = "count") %>%
+  left_join(grid_sf, by = "grid_id") %>%
+  mutate(animal_type = "All Animals") %>%
+  st_as_sf()
+
+# Combine specific animal types with "All Animals" section
+grid_combined <- rbind(grid_counts, grid_total)
+
+# Transform back to WGS84 for leaflet
+grid_combined_wgs <- st_transform(grid_combined, crs = 4326)
+
+# Setup map with layers per animal type
+pal <- colorNumeric("viridis", domain = grid_combined_wgs$count)
+animal_types <- unique(grid_combined_wgs$animal_type)
+
 m <- leaflet() %>%
   addProviderTiles("CartoDB.Positron")
 
-# Add layers to Leaflet Map per animal type
 for (type in animal_types) {
   m <- m %>%
-    addCircleMarkers(
-      data = filter(location_counts, animal_type == type),
-      lng = ~longitude,
-      lat = ~latitude,
-      radius = ~sqrt(count) * 2,
+    addPolygons(
+      data = filter(grid_combined_wgs, animal_type == type),
       fillColor = ~pal(count),
-      fillOpacity = 0.7,
+      fillOpacity = 0.5,
       color = "#444444",
       weight = 1,
       popup = ~paste("Animal: ", animal_type, "<br>Count:", count),
@@ -387,31 +415,31 @@ for (type in animal_types) {
     )
 }
 
-# Add legend and animal filter controls
 m %>%
   addLegend(
     "bottomright",
     pal = pal,
-    values = location_counts$count,
+    values = grid_combined_wgs$count,
     title = "Intake Count"
   ) %>%
   addLayersControl(
-    overlayGroups = animal_types,
+    baseGroups = animal_types,
     options = layersControlOptions(collapsed = FALSE)
   )
 ```
 
+The map shows that the Longbeach shelter intakes animals, regardless of their species, around similar locations locations. Looking at the intake for all animals, there tends to be higher concentrations of intake around Longbeach itself, North Longbeach, and the Los Alamitos area.
 
-(Map and explanation is a work in progress)
+# Discussion 
 
-# Discussion (Rough Draft Overview)
+One of the clearest trends observed is that most animals are taken into the shelter during summer months. In particular, from April to July, peaking in May. There was a decrease in the intake of animals to the shelter during the years of 2020 and 2021 most likely due to the workers, or lack of workers, ability to bring the animals into the shelter due to the COVID-19 pandemic. We found that the most common type of animal taken into the shelter are strays. This is because the other categories are less common. To reduce strays we can inform the public about the consequences of abandoning animals. Fixing and neutering strays on the street would help reduce the stray population. And lastly increasing shelter funding can help the shelter obtain more animals from the streets by hiring more employees and having the resources to house the animals. 
 
-* Talk about how most animals come in during summer months. Note that Covid also probably affected the data (years 2020-2021). Strays are the most common animal type taken in, so explain why that might be and what we can do to change that. Also combine this with the fact that it's common to find under age/weight animals during April, July, and May. This might mean that either people buy/adopt and then ditch animals during this time or something else.
+Unfortunately, euthanasia is the third most common outcome for the animals brought into the shelter. Cats, in particular, see the outcome far too much. Wild animals rarely get adopted and require distinct management strategies, so one option would be to prioritize the resources and space for animals that may have a chance of being adopted. This is a very concerning outcome, thus increasing community awareness is crucial to combat this issue. The shelter could utilize social media to better spread awareness about the excess intake of animals. In that, the shelters need people to adopt the pets urgently, and, for those who can't afford to adopt, volunteering could be useful. Reducing adoption fees can also decrease the euthanasia outcome which the shelter currently deals with. 
 
-* Euthanasia is a really high outcome and we should find ways to lower it. Since wild animals are probably harder to find positive outcomes compared to other animals, rather than targeting resources to prevent euthanasia in wild animals, we should first target cats since euthanasia is one of their top three outcomes.
+The adoption rates of named animals are significantly greater than those of unidentified animals, which is another intriguing behavioral finding. This could be because people believe that named animals are more socialized since they have lived in previous households. Thus, Longbeach can put more adoption effort towards named animals first since they have a higher success rate of being adopted. They could also give names to the animals up for adoption. Pet adoptions rates steadily rise from 2017-2019 from 350 to about 625, but then they drop off, most likely due to Covid, during 2020-2021. Around 2020 pet adoption rates reached an all time low of zero. However, after 2021, they continue to rise until today to a maximum of around 1375. Under normal conditions, we can probably expect this trend to continue until it reaches a steady state. The fact that wild animals are almost never adopted further supports the idea that domestic pets should be the main focus of adoption campaigns, whereas rehabilitation, relocation, or other non-adoption outcomes should be the focus for wild animals taken in by the shelter.
 
-* Pet adoptions rates steadily rise from 2017-2019, but then they drop off, most likely due to Covid, during 2020-2021. However, after 2021, they continue to rise until today. Under normal conditions, we can probably expect this trend to continue until it reaches a steady state.
+Knowing and being able to predict animal intake location allows Longbeach to allocate the proper amount of resources to the correct locations. While the map failed to show any real differences in intake location for different animal species, it shows a good trend of where animals get found and taken to the shelter. We can see significant peaks of animal intake in the central Lonbeach, North Longbeach, and Los Alamitos areas. Allocating more resources to these areas should ease up the intake process, making the animal intake process run much smoother. This information can also help Longbeach implement preventative measures. Since Longbeach aims to build a solid community of people and animals, they can put more work into these communities with higher animal abandonment.
 
-* Animals without names don't get adopted nearly as much as ones with names. While this could be due to people wanting to adopt animals with names (meaning they have probably had a previous owner), there could also be other latent factors influencing this. Also, wild animals never get adopted, so we might expect that wild animals will never get adopted and focus our efforts towards other objectives. 
+Overall, these trends in the data can offer the shelter clear guidance for making future plans. It is crucial for the shelter to be prepared for the seasonal intake spikes during the summer months through hiring staffing, having proper resources, and creating foster campaigns in advance. To cut down on strays, expand owner education and spay/neuter programs. It is important for cats and other suitable domestic animals to be the focus of euthanasia reduction initiatives. To increase the likelihood that an animal will be adopted, encourage naming of animals upon their intake. In order for us to conserve resources and space in the shelter, it would be a good idea to shift the emphasis of wild animals and find them an appropriate alternative. By the shelter aligning with the strategies suggested previously, they will be able to make more effective decisions and potentially improve outcomes while optimizing their resource use.
 
-* In general, talk about how the data shows certain trends and how those trends can help make future decisions towards the company's goals.
+During our data preparation, many columns and a few rows of data were removed or unused. The number of rows removed amounted to such a small percent of the data that it most likely had no effect on the results. On the other hand, looking into alternative research questions that make use of the unused columns would be a great next step. It could be useful to look into more details on the types of intakes and outcomes or the effect of an animals color on certain outcomes. This report took a deep dive into the adoption outcome which leaves the other outcomes for future research. While we covered some of the more important aspects of the data in this report, we hope to look into the multiple unexplored avenues in the data in the future.
